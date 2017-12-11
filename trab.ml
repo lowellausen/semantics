@@ -30,7 +30,7 @@ type term = TmN of int
 	
 
 	
-(*Big Step:*)	
+(*Big Step Eval :*)	
 type value = N of int
 	| B of bool
 	| Clsr of ident*term*env
@@ -96,8 +96,26 @@ let rec bs_eval environment e : value = match e with
 		let term_e2 = bs_eval environment e2 in
 		(match term_e1, term_e2 with
 			RecClsr(f, x, e1_term, e1_env), val_e2 -> bs_eval (insertEnv f (Clsr(f, x, e1_term, e1_env)) (insertEnv x val_e2 e1_env)) e1_term
+		)
+
+	(*BS-OP    não está no resumo-l1 mas parece necessário*)
+	|TmEopE(e1, op, e2) ->
+		let term_e1 = bs_eval environment e1 in
+		let term_e2 = bs_eval environment e2 in
+		(match term_e1, op, term_e2 with
+			N(v1), Sum, N(v2) -> N(v1 + v2)
+			N(v1), Sub, N(v2) -> N(v1 - v2)
+			N(v1), Mult, N(v2) -> N(v1 * v2)
+			N(v1), Great, N(v2) -> B(v1 > v2)
+			N(v1), GreatEq, N(v2) -> B(v1 >= v2)
+			N(v1), Eq, N(v2) -> B(v1 = v2)
+			N(v1), Diff, N(v2) -> B(v1 <> v2)
+			N(v1), LessEq, N(v2) -> B(v1 <= v2)
+			N(v1), Less, N(v2) -> B(v1 < v2)
 		);;
 
+
+(*type infer*)
 
 	
 	
