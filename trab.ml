@@ -115,8 +115,8 @@ let rec bs_eval environment e : value = match e with
 		);;
 
 
-(*type infer*)
-
+(*type system*)
+type 
 	
 	
 
