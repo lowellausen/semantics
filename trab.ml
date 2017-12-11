@@ -35,7 +35,7 @@ type value = N of int
 	| B of bool
 	| Clsr of ident*term*env
 	| RecClsr of ident*ident*term*env
-and env = (ident*value) list;;  (*and necessário porque declaração*)
+	and env = (ident*value) list;;  (*and necessário porque declaração*)
 
 (*funçãozinha auxiliar que será usada em BS-LET e BS-LETREC*)
 let rec insertEnv identifier ident_value envir : env = match envir with
@@ -78,8 +78,25 @@ let rec bs_eval environment e : value = match e with
 	(*BS-LETREC*)
 	|TmLet_rec(f, (typeI, typeO), (x, typeX, e1), e2) ->
 		let this_term = bs_eval environment (TmFn(x, typeX, e1)) in
-		(
-	
+		(match this_term with
+			| Clsr(x_term, func_term, env_term) -> bs_eval (insertEnv f (Clsr(f, x_term, func_term, environment)) env_term) e2 
+		)
+
+	(*BS-APP*)
+	| TmEE(e1, e2) ->
+		let term_e1 = bs_eval environment e1 in
+		let term_e2 = bs_eval environment e2 in
+		(match term_e1, term_e2 with
+			Clsr(x, e1_term, e1_env), val_e2 -> bs_eval (insertEnv x val_e2 e1_env) e1_term
+		)
+
+	(*BS-APPREC*)
+	| TmEE(e1, e2) ->
+		let term_e1 = bs_eval environment e1 in
+		let term_e2 = bs_eval environment e2 in
+		(match term_e1, term_e2 with
+			RecClsr(f, x, e1_term, e1_env), val_e2 -> bs_eval (insertEnv f (Clsr(f, x, e1_term, e1_env)) (insertEnv x val_e2 e1_env)) e1_term
+		);;
 
 
 	
