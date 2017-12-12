@@ -32,6 +32,7 @@ type term = TmN of int
 (*exceptions*)
 exception Identifier_Not_Found
 exception Now_its_Exhaustive
+exception Type_Error
 
 (*Big Step Eval :*)	
 type value = N of int
@@ -40,10 +41,11 @@ type value = N of int
 	| RecClsr of ident*ident*term*env
 	and env = (ident*value) list;;  (*and necessário porque declaração*)
 
-(*funçãozinha auxiliar que será usada em BS-LET e BS-LETREC*)
+(*funçãozinha auxiliar que será usada em BS-LET e BS-LETREC BS-APP e outra para o sistemas de tipos*)
 let rec insertEnv identifier ident_value envir : env = match envir with
 	| [] -> [(identifier, ident_value)]
 	| hd::tl -> List.append [(identifier, ident_value)] envir 
+	
 
 let rec bs_eval environment e : value = match e with
 	
@@ -131,9 +133,83 @@ let rec bs_eval environment e : value = match e with
 (*type system*)
 type type_env = (ident * typ) list;;
 
+(*aux para tipos que necessitam atualizar o env*)
+let rec insertTypeEnv identifier ident_type envir : env = match envir with
+	| [] -> [(identifier, ident_type)]
+	| hd::tl -> List.append [(identifier, ident_type)] envir
 
+let rec type_system environment e : typ = match e with
 	
+	(*T-INT*)
+	TmN(n) -> TInt
 	
+	(*T-BOOL*)
+	| TmB(b) -> TBool
+	
+	(*T-OP todos*)
+	|TmEopE(e1, op, e2) ->
+		let type_e1 = type_system environment e1 in
+		let type_e2 = type_system environment e2 in
+		(match type_e1, op, type_e2 with
+			TInt, Sum, TInt -> TInt
+			|TInt, Sub, TInt -> TInt
+			|TInt, Mult, TInt -> TInt
+			|TInt, Great, TInt -> TBool
+			|TInt, GreatEq, TInt -> TBool
+			|TInt, Eq, TInt -> TBool
+			|TInt, Diff, TInt -> TBool
+			|TInt, LessEq, TInt -> TBool
+			|TInt, Less, TInt -> TBool
+			
+			| _ -> raise Now_its_Exhaustive (*killing warnings*)
+		)
+	
+	(*T-IF*)
+	|TmIf(e1, e2, e3) ->
+		let type_e1 = type_system environment e1 in
+		let type_e2 = type_system environment e2 in
+		let type_e3 = type_system environment e3 in
+		(match type_e1, type_e2, type_e3 with
+			TBool, TInt, TInt -> TInt
+			|TBool, TBool, TBool -> TBool
+			|TBool, TFn(typeI,typeO), TFn(typeI2,typeO2) when(typeI = typeI2 && typeO = typeO2) -> TFn(typeI,typeO)
+	
+			| _ -> raise Now_its_Exhaustive (*killing warnings*)
+		)
 
-
+	(*T-VAR  testar too*)
+	|TmX(x) -> 
+		let rec findType identifier envir : typ = match envir with 
+			[] -> raise Identifier_Not_Found
+			| (this_ident, this_type)::term_rest ->
+				if(this_ident = identifier)
+				then this_type
+				else findType identifier term_rest in
+		(findType x environment)
+		
+	(*T_FUN*)
+	|TmFn(x, x_type, f_term) -> TFn(x_type, (type_system (insertTypeEnv x x_type environment) f_term))
 	
+	(*T-APP*)
+	|TmEE(e1, e2) ->
+		let type_e1 = type_system environment e1 in
+		let type_e2 = type_system environment e2 in
+		(match type_1, type_2 with
+			TmFn(e1_typeI, e1_typeO), e2_type when(e1_typeI = e2_type) -> e1_typeO
+		)
+		
+	(*T-LET*)
+	|TmLet(x, type_x, e1, e2) when(type_x = type_system environment e1) -> type_system environment e2
+		
+	(*T-LETREC*)
+	|TmLet_rec(f, (typeI, typeO), (x, type_x, e1), e2) -> 
+		let env_with_x = insertTypeEnv x type_x environment in
+		let env_with_f = insertTypeEnv f TFn(typeI, typeO) env_with_x in
+		let type_e1 = type_system env_with_f e1 in
+		let type_e2 = type_system (insertTypeEnv f TFn(typeI, typeO) environment) e2 in
+		(if type_e1 = typeO && typeI = type_x
+		then type_e2
+		else raise Type_Error
+		)
+		
+	| _ -> raise Now_its_Exhaustive (*killing warnings*);;
