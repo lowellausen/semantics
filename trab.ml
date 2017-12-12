@@ -33,6 +33,7 @@ type term = TmN of int
 exception Identifier_Not_Found
 exception Now_its_Exhaustive
 exception Type_Error
+exception Empty_Stack
 
 (*Big Step Eval :*)	
 type value = N of int
@@ -216,3 +217,60 @@ let rec type_system environment e : typ = match e with
 		)
 		
 	| _ -> raise Now_its_Exhaustive (*killing warnings*);;
+	
+(*SSM2 compilação*)
+type instruction = INT of int |BOOL of bool
+	|POP | COPY
+	|ADD | INV
+	|EQ | GT
+	|AND | NOT
+	|JUMP of int | JMPIFTRUE of int
+	|VAR of ident
+	| FUN of ident * code
+	| RFUN of ident * ident * code
+	|APPLY
+and code = instruction list ;; (*de novo, and porque as definições são dependentes*)
+
+type storable_value = SvINT of int
+	|SvBOOL of bool
+	|SvCLOS of ssm2_env * ident * code
+	|SvRCLOS of ssm2_env * ident * ident * code
+and stack = storable_value list
+and ssm2_env = (ident * storable_value) list
+and dump = (code * stack * ssm2_env) list;;
+
+type state = State of code * stack * ssm2_env * dump;;
+
+(*semântica ssm2*)
+let rec ssm2_eval cod stck env dp : state = match cod with
+
+	(*as regras não têm nomes :( *)
+	(* regra do int*)
+	INT(n)::tl -> ssm2_eval tl (List.append [SvINT(n)] stck) env dp
+	
+	(*regra do bool*)
+	|BOOL(b)::tl -> ssm2_eval tl (List.append [SvBOOL(b)] stck) env dp
+	
+	(*regra do pop*)
+	|POP::tl -> (match stck with
+					[] -> raise Empty_Stack
+					|hd::tls -> ssm2_eval tl tls env dp
+				)
+				
+	(*regra do copy*)
+	|COPY::tl -> (match stck with
+					[] -> raise Empty_Stack
+					|hd::tls -> ssm2_eval tl (List.append [hd] stck) env dp
+				)
+				
+	(*regra do add*)
+	|ADD::tl -> (match stck with
+					[] -> raise Empty_Stack
+					|SvINT(n1)::tls -> (match tls with
+											[] -> raise Empty_Stack
+											|SvINT(n2)::tltls -> ssm2_eval tl (List.append [SvINT(n1 + n2)] tltls) env dp
+										)
+				)
+				
+	;;
+
