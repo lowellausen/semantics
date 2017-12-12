@@ -134,7 +134,7 @@ let rec bs_eval environment e : value = match e with
 type type_env = (ident * typ) list;;
 
 (*aux para tipos que necessitam atualizar o env*)
-let rec insertTypeEnv identifier ident_type envir : env = match envir with
+let rec insertTypeEnv identifier ident_type envir : type_env = match envir with
 	| [] -> [(identifier, ident_type)]
 	| hd::tl -> List.append [(identifier, ident_type)] envir
 
@@ -194,8 +194,9 @@ let rec type_system environment e : typ = match e with
 	|TmEE(e1, e2) ->
 		let type_e1 = type_system environment e1 in
 		let type_e2 = type_system environment e2 in
-		(match type_1, type_2 with
-			TmFn(e1_typeI, e1_typeO), e2_type when(e1_typeI = e2_type) -> e1_typeO
+		(match type_e1, type_e2 with
+			TFn(e1_typeI, e1_typeO), e2_type when(e1_typeI = e2_type) -> e1_typeO
+			| _ -> raise Now_its_Exhaustive (*killing warnings*)
 		)
 		
 	(*T-LET*)
@@ -204,9 +205,11 @@ let rec type_system environment e : typ = match e with
 	(*T-LETREC*)
 	|TmLet_rec(f, (typeI, typeO), (x, type_x, e1), e2) -> 
 		let env_with_x = insertTypeEnv x type_x environment in
-		let env_with_f = insertTypeEnv f TFn(typeI, typeO) env_with_x in
+		let f_type = TFn(typeI, typeO) in
+		(*let env_with_f = insertTypeEnv f TFn(typeI, typeO) env_with_x in*)
+		let env_with_f = insertTypeEnv f f_type env_with_x in
 		let type_e1 = type_system env_with_f e1 in
-		let type_e2 = type_system (insertTypeEnv f TFn(typeI, typeO) environment) e2 in
+		let type_e2 = type_system (insertTypeEnv f f_type environment) e2 in
 		(if type_e1 = typeO && typeI = type_x
 		then type_e2
 		else raise Type_Error
