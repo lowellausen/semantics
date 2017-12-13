@@ -395,7 +395,20 @@ let rec ssm2_eval cod stck env dp : state = match cod with
 	|[] -> (match dp with
 				[]-> State([], stck, env, []) (*é isso mesmo? retornamos um state value?? teóricamente há um elemento na stack??? *)
 				| (cod_d, stck_d, env_d)::tl -> ssm2_eval cod_d (List.append stck (*queira deus que tenha só um sv*) stck_d) env_d tl
-			)
+			);;
+			
+			
+(*agora dá pra compilar L1 pra ssm2? omg*)
+let rec c (*acho que aquele desenho chiq é um c*) environment term : code = match term with
+
+	(*regra dos int*)
+	TmN(n) -> [INT(n)]
 	
-	| _ -> raise Now_its_Exhaustive (*killing warnings*);;
+	(*regra dos bool*)
+	|TmB(b) -> [BOOL(b)]
+	
+	(*regra das op*)
+	;;(*amanhã eu termino*)
+	
+	
 	
