@@ -408,7 +408,58 @@ let rec c (*acho que aquele desenho chiq é um c*) environment term : code = mat
 	|TmB(b) -> [BOOL(b)]
 	
 	(*regra das op*)
-	;;(*amanhã eu termino*)
+	| TmEopE(e1, op, e2) ->
+		let term_e1 = c environment e1 in
+		let term_e2 = c environment e2 in
+		(match op with
+			Sum -> List.append term_e2 (List.append term_e1 [ADD])
+			|Sub -> List.append (List.append term_e2 (List.append [INV] term_e1)) [ADD]			
+			(*| Mult -> ()*) (*definir açúcar sintático ou algo aqui*)
+			|Great -> List.append term_e2 (List.append term_e1 [GT])
+			(*| GreatEq -> () *)(*definir açúcar sintático ou algo aqui*)
+ 			|Eq -> List.append term_e2 (List.append term_e1 [EQ])
+			(*| Diff -> ()*) (*definir açúcar sintático ou algo aqui*)
+			(*| LessEq -> ()*) (*definir açúcar sintático ou algo aqui*)
+			(*| Less -> ()*) (*definir açúcar sintático ou algo aqui*)
+			
+			| _ -> raise Now_its_Exhaustive
+		)
+		
+	(*regra do if*)
+	|TmIf(e1, e2, e3) ->
+		let term_e1 = c environment e1 in
+		let term_e2 = c environment e2 in	
+		let term_e3 = c environment e3 in
+		(
+		List.append (List.append (List.append term_e1 (List.append [JMPIFTRUE((List.length term_e3) +1)] term_e3)) [JUMP((List.length term_e2))]) term_e2
+		)
+	
+	(*regra do var*)
+	|TmX(x) -> [VAR(x)]
+	
+	(*regra da aplicação*)
+	|TmEE(e1, e2) ->
+		let term_e1 = c environment e1 in
+		let term_e2 = c environment e2 in
+		( List.append term_e2 (List.append term_e1 [APPLY]))
+		
+	(*regra do fun*)
+	|TmFn(x, type_x, term_f) -> [FUN(x,  (c environment term_f))]
+	
+	(*regra do let*)
+	|TmLet(x, type_x, e1, e2) ->
+		let term_e1 = c environment e1 in
+		let term_e2 = c environment e2 in
+		(List.append term_e1 (List.append [FUN(x, term_e2)] [APPLY]))
+		
+	(*Regra do let rec*)
+	|TmLet_rec(f, (typeI, typeO), (x, type_x, e1), e2) -> 
+		let term_e1 = c environment e1 in
+		let term_e2 = c environment e2 in
+		(List.append [RFUN(f, x, term_e1)] (List.append [FUN(f, term_e2)] [APPLY]))
+		
+	;;
+	
 	
 	
 	
