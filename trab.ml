@@ -242,6 +242,17 @@ and dump = (code * stack * ssm2_env) list;;
 type state = State of code * stack * ssm2_env * dump;;
 
 (*semântica ssm2*)
+
+(*função aux para dividir a lista code. RERTIRADA DO STACK OVERFLOW:
+https://stackoverflow.com/questions/31616117/splitting-a-list-using-an-index
+*)
+
+let rec split_at1 n l =
+	if n = 0 then ([], l) else
+	match l with
+	| [] -> ([], [])    (*or raise an exception, as you wish*)
+	| h :: t -> let (l1, l2) = split_at1 (n-1) t in (h :: l1, l2);;
+
 let rec ssm2_eval cod stck env dp : state = match cod with
 
 	(*as regras não têm nomes :( *)
@@ -272,5 +283,69 @@ let rec ssm2_eval cod stck env dp : state = match cod with
 										)
 				)
 				
-	;;
+	
+	(*regra do inv*)
+	|INV::tl -> (match stck with
+					[] -> raise Empty_Stack
+					|SvINT(n)::tls -> ssm2_eval tl (List.append [SvINT(-1 * n)] tls) env dp
+				)
+				
+	(*regra do eq*)
+	|EQ::tl -> (match stck with
+					[] -> raise Empty_Stack
+					|SvINT(n1)::tls -> (match tls with
+											[] -> raise Empty_Stack
+											|SvINT(n2)::tltls -> ssm2_eval tl (List.append [SvBOOL(n1 = n2)] tltls) env dp
+										)
+				)
 
+	(*regra do gt*)
+	|GT::tl -> (match stck with
+					[] -> raise Empty_Stack
+					|SvINT(n1)::tls -> (match tls with
+											[] -> raise Empty_Stack
+											|SvINT(n2)::tltls -> ssm2_eval tl (List.append [SvBOOL(n1 > n2)] tltls) env dp
+										)
+
+				)
+				
+	(*regra do and*)
+	|AND::tl -> (match stck with
+					[] -> raise Empty_Stack
+					|SvBOOL(b1)::tls -> (match tls with
+											[] -> raise Empty_Stack
+											|SvBOOL(b2)::tltls -> ssm2_eval tl (List.append [SvBOOL(b1 && b2)] tltls) env dp
+										)
+				)
+				
+	(*regra do not*)
+	|NOT::tl -> (match stck with
+					[] -> raise Empty_Stack
+					|SvBOOL(b)::tls -> ssm2_eval tl (List.append [SvBOOL(not b)] tls) env dp
+				)
+				
+	(*regra do jump*)
+	|JUMP(n)::tl -> let (cod1, cod2) = split_at1 n cod in (ssm2_eval cod2 stck env dp)
+	
+	(*regra do jmpiftrue*)
+	|JMPIFTRUE(n)::tl -> let (cod1, cod2) = split_at1 n cod in
+						(match stck with
+							[] -> raise Empty_Stack
+							|SvBOOL(b)::tls -> (if z1 then (ssm2_eval cod2 tls env dp) else (ssm2_eval tl tls env dp))
+						)
+	
+	(*regra do var*)
+	|VAR(x)::tl -> 
+		let rec findSValue identifier envir : storable_value = match envir with 
+			[] -> raise Identifier_Not_Found
+			| (this_ident, this_sval)::env_rest ->
+				if(this_ident = identifier)
+				then this_sval
+				else findSValue identifier env_rest in
+		(ssm2_eval tl (List.append [findValue x environment] stck) env dp)
+	
+	(*regra do fun*)
+	|FUN(x, cod_f)::tl -> ssm2_eval tl (List.append [SvCLOS(env, x, cod_f)] stck) env dp
+	
+	(*regra do apply*)
+	|APPLY::tl ->
