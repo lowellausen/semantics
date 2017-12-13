@@ -252,6 +252,13 @@ let rec split_at1 n l =
 	match l with
 	| [] -> ([], [])    (*or raise an exception, as you wish*)
 	| h :: t -> let (l1, l2) = split_at1 (n-1) t in (h :: l1, l2);;
+	
+	
+(*AQUELA auxiliar pra aumentar o ambiente*)
+let rec insertSSM2Env identifier sv envir : ssm2_env = match envir with
+	| [] -> [(identifier, sv)]
+	| hd::tl -> List.append [(identifier, sv)] envir
+
 
 let rec ssm2_eval cod stck env dp : state = match cod with
 
@@ -280,7 +287,10 @@ let rec ssm2_eval cod stck env dp : state = match cod with
 					|SvINT(n1)::tls -> (match tls with
 											[] -> raise Empty_Stack
 											|SvINT(n2)::tltls -> ssm2_eval tl (List.append [SvINT(n1 + n2)] tltls) env dp
+										
+											| _ -> raise Now_its_Exhaustive (*killing warnings*)
 										)
+					| _ -> raise Now_its_Exhaustive (*killing warnings*)
 				)
 				
 	
@@ -288,6 +298,8 @@ let rec ssm2_eval cod stck env dp : state = match cod with
 	|INV::tl -> (match stck with
 					[] -> raise Empty_Stack
 					|SvINT(n)::tls -> ssm2_eval tl (List.append [SvINT(-1 * n)] tls) env dp
+				
+					| _ -> raise Now_its_Exhaustive (*killing warnings*)
 				)
 				
 	(*regra do eq*)
@@ -296,7 +308,10 @@ let rec ssm2_eval cod stck env dp : state = match cod with
 					|SvINT(n1)::tls -> (match tls with
 											[] -> raise Empty_Stack
 											|SvINT(n2)::tltls -> ssm2_eval tl (List.append [SvBOOL(n1 = n2)] tltls) env dp
+										
+											| _ -> raise Now_its_Exhaustive (*killing warnings*)
 										)
+					| _ -> raise Now_its_Exhaustive (*killing warnings*)
 				)
 
 	(*regra do gt*)
@@ -305,8 +320,11 @@ let rec ssm2_eval cod stck env dp : state = match cod with
 					|SvINT(n1)::tls -> (match tls with
 											[] -> raise Empty_Stack
 											|SvINT(n2)::tltls -> ssm2_eval tl (List.append [SvBOOL(n1 > n2)] tltls) env dp
+										
+											| _ -> raise Now_its_Exhaustive (*killing warnings*)
 										)
 
+					| _ -> raise Now_its_Exhaustive (*killing warnings*)
 				)
 				
 	(*regra do and*)
@@ -315,13 +333,18 @@ let rec ssm2_eval cod stck env dp : state = match cod with
 					|SvBOOL(b1)::tls -> (match tls with
 											[] -> raise Empty_Stack
 											|SvBOOL(b2)::tltls -> ssm2_eval tl (List.append [SvBOOL(b1 && b2)] tltls) env dp
+										
+											| _ -> raise Now_its_Exhaustive (*killing warnings*)
 										)
+					| _ -> raise Now_its_Exhaustive (*killing warnings*)
 				)
 				
 	(*regra do not*)
 	|NOT::tl -> (match stck with
 					[] -> raise Empty_Stack
 					|SvBOOL(b)::tls -> ssm2_eval tl (List.append [SvBOOL(not b)] tls) env dp
+				
+					| _ -> raise Now_its_Exhaustive (*killing warnings*)
 				)
 				
 	(*regra do jump*)
@@ -331,7 +354,9 @@ let rec ssm2_eval cod stck env dp : state = match cod with
 	|JMPIFTRUE(n)::tl -> let (cod1, cod2) = split_at1 n cod in
 						(match stck with
 							[] -> raise Empty_Stack
-							|SvBOOL(b)::tls -> (if z1 then (ssm2_eval cod2 tls env dp) else (ssm2_eval tl tls env dp))
+							|SvBOOL(b)::tls -> (if b then (ssm2_eval cod2 tls env dp) else (ssm2_eval tl tls env dp))
+							
+							| _ -> raise Now_its_Exhaustive (*killing warnings*)
 						)
 	
 	(*regra do var*)
@@ -342,10 +367,29 @@ let rec ssm2_eval cod stck env dp : state = match cod with
 				if(this_ident = identifier)
 				then this_sval
 				else findSValue identifier env_rest in
-		(ssm2_eval tl (List.append [findValue x environment] stck) env dp)
+				(ssm2_eval tl (List.append [findSValue x env] stck) env dp)
 	
 	(*regra do fun*)
 	|FUN(x, cod_f)::tl -> ssm2_eval tl (List.append [SvCLOS(env, x, cod_f)] stck) env dp
 	
-	(*regra do apply*)
-	|APPLY::tl ->
+	(*regra da rfun*)
+	|RFUN(f, x, cod_f)::tl -> ssm2_eval tl (List.append [SvRCLOS(env, f, x, cod_f)] stck) env dp
+	
+	(*regra do apply para clos e rclos*)
+	|APPLY::tl -> (match stck with
+					[] -> raise Empty_Stack
+					|SvCLOS(env_c, x, cod_c)::tls -> 
+						(match tls with
+							[]-> raise Empty_Stack
+							|hd::tltls -> ssm2_eval cod_c [] (insertSSM2Env x hd env_c) (List.append [(tl, tltls, env)] dp)
+						)
+					|SvRCLOS(env_c, f, x, cod_c)::tls ->
+						(match tls with 
+							[] -> raise Empty_Stack
+							|hd::tltls -> ssm2_eval cod_c [] (insertSSM2Env f (SvRCLOS(env_c, f, x, cod_c)) (insertSSM2Env x hd env_c)) (List.append [(tl, tltls, env)] dp)
+						)
+					| _ -> raise Now_its_Exhaustive (*killing warnings*)
+					)
+					
+	| _ -> raise Now_its_Exhaustive (*killing warnings*);;
+	
