@@ -13,7 +13,7 @@ type op = Sum
 	|Less;;
 
 type typ = TInt 
-	| TBool 
+	| TTmB 
 	| TFn of typ * typ;;
 
 type ident = string;;
@@ -50,10 +50,10 @@ let rec insertEnv identifier ident_value envir : env = match envir with
 
 let rec bs_eval environment e : value = match e with
 	
-	(*BS-NUM*)
+	(*BS-TmN*)
 	TmN(num) -> N(num)
 	
-	(*BS-BOOL*)
+	(*BS-TmB*)
 	|TmB(boool) -> B(boool)
 	
 	(*BS-ID*)
@@ -124,6 +124,8 @@ let rec bs_eval environment e : value = match e with
 			|N(v1), Diff, N(v2) -> B(v1 <> v2)
 			|N(v1), LessEq, N(v2) -> B(v1 <= v2)
 			|N(v1), Less, N(v2) -> B(v1 < v2)
+			|B(v1), Eq, B(v2) -> B(v1 = v2)
+			|B(v1), Diff, B(v2) -> B(v1 <> v2)
 			
 			| _ -> raise Now_its_Exhaustive (*killing warnings*)
 		)
@@ -144,8 +146,8 @@ let rec type_system environment e : typ = match e with
 	(*T-INT*)
 	TmN(n) -> TInt
 	
-	(*T-BOOL*)
-	| TmB(b) -> TBool
+	(*T-TmB*)
+	| TmB(b) -> TTmB
 	
 	(*T-OP todos*)
 	|TmEopE(e1, op, e2) ->
@@ -155,12 +157,14 @@ let rec type_system environment e : typ = match e with
 			TInt, Sum, TInt -> TInt
 			|TInt, Sub, TInt -> TInt
 			|TInt, Mult, TInt -> TInt
-			|TInt, Great, TInt -> TBool
-			|TInt, GreatEq, TInt -> TBool
-			|TInt, Eq, TInt -> TBool
-			|TInt, Diff, TInt -> TBool
-			|TInt, LessEq, TInt -> TBool
-			|TInt, Less, TInt -> TBool
+			|TInt, Great, TInt -> TTmB
+			|TInt, GreatEq, TInt -> TTmB
+			|TInt, Eq, TInt -> TTmB
+			|TInt, Diff, TInt -> TTmB
+			|TInt, LessEq, TInt -> TTmB
+			|TInt, Less, TInt -> TTmB
+			|TTmB, Eq, TTmB -> TTmB
+			|TTmB, Diff, TTmB -> TTmB
 			
 			| _ -> raise Now_its_Exhaustive (*killing warnings*)
 		)
@@ -171,9 +175,9 @@ let rec type_system environment e : typ = match e with
 		let type_e2 = type_system environment e2 in
 		let type_e3 = type_system environment e3 in
 		(match type_e1, type_e2, type_e3 with
-			TBool, TInt, TInt -> TInt
-			|TBool, TBool, TBool -> TBool
-			|TBool, TFn(typeI,typeO), TFn(typeI2,typeO2) when(typeI = typeI2 && typeO = typeO2) -> TFn(typeI,typeO)
+			TTmB, TInt, TInt -> TInt
+			|TTmB, TTmB, TTmB -> TTmB
+			|TTmB, TFn(typeI,typeO), TFn(typeI2,typeO2) when(typeI = typeI2 && typeO = typeO2) -> TFn(typeI,typeO)
 	
 			| _ -> raise Now_its_Exhaustive (*killing warnings*)
 		)
@@ -216,10 +220,13 @@ let rec type_system environment e : typ = match e with
 		else raise Type_Error
 		)
 		
-	| _ -> raise Now_its_Exhaustive (*killing warnings*);;
+	| _ -> raise Now_its_Exhaustive (*killing warnings*) ;;
+
+
+
 	
 (*SSM2 compilação*)
-type instruction = INT of int |BOOL of bool
+type instruction = INT of int |TmB of bool
 	|POP | COPY
 	|ADD | INV
 	|EQ | GT
@@ -232,7 +239,7 @@ type instruction = INT of int |BOOL of bool
 and code = instruction list ;; (*de novo, and porque as definições são dependentes*)
 
 type storable_value = SvINT of int
-	|SvBOOL of bool
+	|SvTmB of bool
 	|SvCLOS of ssm2_env * ident * code
 	|SvRCLOS of ssm2_env * ident * ident * code
 and stack = storable_value list
@@ -266,8 +273,8 @@ let rec ssm2_eval cod stck env dp : state = match cod with
 	(* regra do int*)
 	INT(n)::tl -> ssm2_eval tl (List.append [SvINT(n)] stck) env dp
 	
-	(*regra do bool*)
-	|BOOL(b)::tl -> ssm2_eval tl (List.append [SvBOOL(b)] stck) env dp
+	(*regra do TmB*)
+	|TmB(b)::tl -> ssm2_eval tl (List.append [SvTmB(b)] stck) env dp
 	
 	(*regra do pop*)
 	|POP::tl -> (match stck with
@@ -307,7 +314,7 @@ let rec ssm2_eval cod stck env dp : state = match cod with
 					[] -> raise Empty_Stack
 					|SvINT(n1)::tls -> (match tls with
 											[] -> raise Empty_Stack
-											|SvINT(n2)::tltls -> ssm2_eval tl (List.append [SvBOOL(n1 = n2)] tltls) env dp
+											|SvINT(n2)::tltls -> ssm2_eval tl (List.append [SvTmB(n1 = n2)] tltls) env dp
 										
 											| _ -> raise Now_its_Exhaustive (*killing warnings*)
 										)
@@ -319,7 +326,7 @@ let rec ssm2_eval cod stck env dp : state = match cod with
 					[] -> raise Empty_Stack
 					|SvINT(n1)::tls -> (match tls with
 											[] -> raise Empty_Stack
-											|SvINT(n2)::tltls -> ssm2_eval tl (List.append [SvBOOL(n1 > n2)] tltls) env dp
+											|SvINT(n2)::tltls -> ssm2_eval tl (List.append [SvTmB(n1 > n2)] tltls) env dp
 										
 											| _ -> raise Now_its_Exhaustive (*killing warnings*)
 										)
@@ -330,9 +337,9 @@ let rec ssm2_eval cod stck env dp : state = match cod with
 	(*regra do and*)
 	|AND::tl -> (match stck with
 					[] -> raise Empty_Stack
-					|SvBOOL(b1)::tls -> (match tls with
+					|SvTmB(b1)::tls -> (match tls with
 											[] -> raise Empty_Stack
-											|SvBOOL(b2)::tltls -> ssm2_eval tl (List.append [SvBOOL(b1 && b2)] tltls) env dp
+											|SvTmB(b2)::tltls -> ssm2_eval tl (List.append [SvTmB(b1 && b2)] tltls) env dp
 										
 											| _ -> raise Now_its_Exhaustive (*killing warnings*)
 										)
@@ -342,7 +349,7 @@ let rec ssm2_eval cod stck env dp : state = match cod with
 	(*regra do not*)
 	|NOT::tl -> (match stck with
 					[] -> raise Empty_Stack
-					|SvBOOL(b)::tls -> ssm2_eval tl (List.append [SvBOOL(not b)] tls) env dp
+					|SvTmB(b)::tls -> ssm2_eval tl (List.append [SvTmB(not b)] tls) env dp
 				
 					| _ -> raise Now_its_Exhaustive (*killing warnings*)
 				)
@@ -354,7 +361,7 @@ let rec ssm2_eval cod stck env dp : state = match cod with
 	|JMPIFTRUE(n)::tl -> let (cod1, cod2) = split_at1 n cod in
 						(match stck with
 							[] -> raise Empty_Stack
-							|SvBOOL(b)::tls -> (if b then (ssm2_eval cod2 tls env dp) else (ssm2_eval tl tls env dp))
+							|SvTmB(b)::tls -> (if b then (ssm2_eval cod2 tls env dp) else (ssm2_eval tl tls env dp))
 							
 							| _ -> raise Now_its_Exhaustive (*killing warnings*)
 						)
@@ -404,8 +411,8 @@ let rec c (*acho que aquele desenho chiq é um c*) environment term : code = mat
 	(*regra dos int*)
 	TmN(n) -> [INT(n)]
 	
-	(*regra dos bool*)
-	|TmB(b) -> [BOOL(b)]
+	(*regra dos TmB*)
+	|TmB(b) -> [TmB(b)]
 	
 	(*regra das op*)
 	| TmEopE(e1, op, e2) ->
@@ -460,6 +467,167 @@ let rec c (*acho que aquele desenho chiq é um c*) environment term : code = mat
 		
 	;;
 	
+	(***************TESTES******************)
+
+	let environment : env = []
+
+	let print_value s v : unit =
+		(match v with 
+			| N(n) -> Printf.printf "A avaliação de %s resultou em %d\n\n" s n
+			| B(b) -> Printf.printf "A avaliação de %s resultou em  %B\n\n" s b
+			| Clsr(var, exp, env) -> Printf.printf "A avaliação de %s resultou em uma Clsr\n\n" s
+			| RecClsr(f, var, exp, env) ->  Printf.printf "A avaliação de %s resultou em uma RecClsr\n\n" s
+		)
+
+
+
+	let print_valueSSM2 s v : unit =
+		(match v with 
+			| SvINT(n) -> Printf.printf "A avaliação de %s resultou em  %d\n\n" s n
+			| SvTmB(b) -> Printf.printf "A avaliação de %s resultou em  %B\n\n" s b
+			| SvCLOS(var, exp, env) -> Printf.printf "A avaliação de %s resultou em uma SvCLOS\n\n" s
+			| SvRCLOS(f, var, exp, env) ->  Printf.printf "A avaliação de %s resultou em uma SvRCLOS\n\n" s
+		)
 	
+
+
+	let sub = TmEopE(TmN(10), Sub, TmN(5));;
+
+	let sum = TmEopE(TmN(10), Sum, TmN(5));;
+
+	let mult = TmEopE(TmN(10), Mult, TmN(5));;
+
+	let less = TmEopE(TmN(10), Less, TmN(5));;
+
+	let eqNum = TmEopE(TmN(10), Eq, TmN(5));;
+
+	let eqBool = TmEopE(TmB(false), Eq, TmB(true));;
+
+	let great  = TmEopE(TmN(10), Great, TmN(5));;
+
+	let diffNum = TmEopE(TmN(10), Diff, TmN(5));;
+
+	let diffBool = TmEopE(TmB(false), Diff, TmB(true));;
+
+	let lessEq = TmEopE(TmN(10), LessEq, TmN(5));;
+
+	let greatEq = TmEopE(TmN(10), GreatEq, TmN(5));;
+
+	let ifTrue = TmIf(TmEopE(TmN(99), Diff, TmN(25)), TmB(true), TmB(false));;
+
+	let ifFalse = TmIf(TmEopE(TmN(99), Diff, TmN(99)), TmB(true), TmB(false));;
+
+	let fn = TmFn("x", TInt, TmEopE(TmX("x"), Sub, TmN(1)));;
+
+	let x = TmX("x");;
+
+	let tEE = TmEE(TmFn("x", TInt, TmEopE(x, Sub, TmN(4))), TmN(5));;
+
+	let let1 = TmLet("x", TInt, TmN(2), TmEopE(TmX("x"), Sub, TmN(2)));;
+
+	let let2 = TmLet("x", TInt, TmN(2), TmLet("y", TInt, TmN(2), TmEopE(TmX("x"), Mult, TmX("y"))));;
+
+	let let3 = TmLet("x", TInt, TmN(23), TmIf(TmEopE(TmX("x"), Eq, TmN(23)), TmB(true), TmB(false)));;
+
+	let letRec1 = TmLet_rec("fat", (TInt, TInt), ("x", TInt,
+							TmIf(TmEopE(TmX("x"), Eq, TmN(0)),
+								TmN(1),
+								TmEopE(TmX("x"), Mult, TmEE(TmX("fat"), TmEopE(TmX("x"), Sub, TmN(1))))
+							)),
+							TmEE(TmX("fat"), TmN(10))
+						);;
+
+	let letRec2 = TmLet_rec("fib", (TInt, TInt), ("x", TInt,
+							TmIf(TmEopE(TmX("x"), Less, TmN(2)),
+								TmX("x"),
+								TmEopE(TmEE(TmX("fib"), TmEopE(TmX("x"), Sub, TmN(1))), Sum, TmEE(TmX("fib"), TmEopE(TmX("x"), Sub, TmN(2))))
+							)),
+							TmEE(TmX("fib"), TmN(10))
+						);;
+
+
+
+	let testSub = bs_eval environment sub;;
+	print_value "sub" testSub;;
+
+	let testSum = bs_eval environment sum;;
+	print_value "sum" testSum;;
+
+	let testMult = bs_eval environment mult;;
+	print_value "mult" testMult;;
+
+	let testLess = bs_eval environment less;;
+	print_value "less" testLess;;
+
+	let testEqNum = bs_eval environment eqNum;;
+	print_value "eqNum" testEqNum;;
+
+	let testEqBool = bs_eval environment eqBool;;
+	print_value "eqBool" testEqBool;; 
+
+	let testGreat = bs_eval environment great;;
+	print_value "great" testGreat;;
+
+	let testDiffNum = bs_eval environment diffNum;;
+	print_value "diffNum" testDiffNum;;
+
+	let testDiffBool = bs_eval environment diffBool;;
+	print_value "diffBool" testDiffBool;; 
+
+	let testLessEq = bs_eval environment lessEq;;
+	print_value "lessEq" testLessEq;;
+
+	let testGreatEq = bs_eval environment greatEq;;
+	print_value "greatEq" testGreatEq;;
+
+	let testIfFalse = bs_eval environment ifFalse;;
+	print_value "ifFalse" testIfFalse;;
+
+	let testIfTrue = bs_eval environment ifTrue;;
+	print_value "ifTrue" testIfTrue;;
+
+	let testFn = bs_eval environment fn;;
+	print_value "fn" testFn;;
+
+	let testTEE = bs_eval environment tEE;;
+	print_value "tEE" testTEE;;
+
+	let testLet1 = bs_eval environment let1;;
+	print_value "let1" testLet1;;
+
+	let testLet2 = bs_eval environment let2;;
+	print_value "let2" testLet2;;
+
+	let testLet3 = bs_eval environment let3;;
+	print_value "let3" testLet3;;
+
+
+
+
+
+
+
+
+
+
+
+
+
 	
-	
+	(* ==*== EXPRESSÕES ==*== *)
+	let environment : ssm2_env = [];;
+	let d : dump = [];;
+	let s : stack = [];;
+
+	let bopSubOK = TmEopE(TmN(10), Sub, TmN(5));;
+
+			let tipo a: storable_value =
+			( match a with
+				|State(cod, hd::tls, env, dp) -> hd 
+			| _ -> raise Now_its_Exhaustive);;
+
+		let testBopSumOK = c environment bopSubOK;;
+		let a = ssm2_eval testBopSumOK s environment d;;
+		let b = tipo a;;
+
+	print_value "Bop(Num(10), Sum, Num(5))" b;
