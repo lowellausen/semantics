@@ -471,6 +471,10 @@ let rec c (*acho que aquele desenho chiq é um c*) environment term : code = mat
 
 	let environment : env = []
 
+	let environmentSSM2 : ssm2_env = [];;
+	let d : dump = [];;
+	let st : stack = [];;
+
 	let print_value s v : unit =
 		(match v with 
 			| N(n) -> Printf.printf "A avaliação de %s resultou em %d\n\n" s n
@@ -517,6 +521,8 @@ let rec c (*acho que aquele desenho chiq é um c*) environment term : code = mat
 
 	let ifFalse = TmIf(TmEopE(TmN(99), Diff, TmN(99)), TmB(true), TmB(false));;
 
+	let ifSSM2 = TmIf(TmEopE(TmN(99), Great, TmN(10)), TmB(true), TmB(false));;
+
 	let fn = TmFn("x", TInt, TmEopE(TmX("x"), Sub, TmN(1)));;
 
 	let x = TmX("x");;
@@ -534,7 +540,7 @@ let rec c (*acho que aquele desenho chiq é um c*) environment term : code = mat
 								TmN(1),
 								TmEopE(TmX("x"), Mult, TmEE(TmX("fat"), TmEopE(TmX("x"), Sub, TmN(1))))
 							)),
-							TmEE(TmX("fat"), TmN(10))
+							TmEE(TmX("fat"), TmN(8))
 						);;
 
 	let letRec2 = TmLet_rec("fib", (TInt, TInt), ("x", TInt,
@@ -542,7 +548,7 @@ let rec c (*acho que aquele desenho chiq é um c*) environment term : code = mat
 								TmX("x"),
 								TmEopE(TmEE(TmX("fib"), TmEopE(TmX("x"), Sub, TmN(1))), Sum, TmEE(TmX("fib"), TmEopE(TmX("x"), Sub, TmN(2))))
 							)),
-							TmEE(TmX("fib"), TmN(10))
+							TmEE(TmX("fib"), TmN(8))
 						);;
 
 
@@ -601,33 +607,33 @@ let rec c (*acho que aquele desenho chiq é um c*) environment term : code = mat
 	let testLet3 = bs_eval environment let3;;
 	print_value "let3" testLet3;;
 
+	let testletRec1 = bs_eval environment letRec1;;
+	print_value "letRec1" testletRec1;;
+
+	let testletRec2 = bs_eval environment letRec2;;
+	print_value "letRec2" testletRec2;;
 
 
+(*************TESTES SSM2*************)
 
-
-
-
-
-
-
-
-
-
-	
-	(* ==*== EXPRESSÕES ==*== *)
-	let environment : ssm2_env = [];;
-	let d : dump = [];;
-	let s : stack = [];;
-
-	let bopSubOK = TmEopE(TmN(10), Sub, TmN(5));;
-
-			let tipo a: storable_value =
+	let get_head a: storable_value =
 			( match a with
-				|State(cod, hd::tls, env, dp) -> hd 
-			| _ -> raise Now_its_Exhaustive);;
+				|State(cod, hd::tls, env, dp) -> hd
+				| _ -> raise Now_its_Exhaustive
+);;
 
-		let testBopSumOK = c environment bopSubOK;;
-		let a = ssm2_eval testBopSumOK s environment d;;
-		let b = tipo a;;
 
-	print_value "Bop(Num(10), Sum, Num(5))" b;
+	let sumCode = c environmentSSM2 sum;;
+	let sumState = ssm2_eval sumCode st environmentSSM2 d;;
+	let sumValue = get_head sumState;;
+	print_valueSSM2 "sum SSM2" sumValue;;
+
+	let ifCode = c environmentSSM2 ifSSM2;;
+	let ifState = ssm2_eval ifCode st environmentSSM2 d;;
+	let ifValue = get_head ifState;;
+	print_valueSSM2 "ifSSM2 SSM2" ifValue;;
+
+	let letCode = c environmentSSM2 let1;;
+	let letState = ssm2_eval letCode st environmentSSM2 d;;
+	let letValue = get_head letState;;
+	print_valueSSM2 "let1 SSM2" letValue;;
