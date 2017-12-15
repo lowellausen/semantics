@@ -493,8 +493,6 @@ let rec c (*acho que aquele desenho chiq é um c*) environment term : code = mat
 			| Diff -> List.append term_e2 (List.append term_e1 [DIFF])
 			| LessEq -> List.append term_e2 (List.append term_e1 [EQLS])
 			| Less -> List.append term_e2 (List.append term_e1 [LS])
-			
-			| _ -> raise Now_its_Exhaustive
 		)
 		
 	(*regra do if*)
