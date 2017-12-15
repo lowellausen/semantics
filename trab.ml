@@ -1,6 +1,13 @@
 (*trabalhinho de semântica 2017/2*)
 (*Não creio que se faz comentário assim*)
 
+(*
+Isadora Oliveira 
+Jonathan Martins
+Leonardo Wellausen
+
+*)
+
 (*Sintaxe Abstrata:*)
 type op = Sum
 	|Sub
@@ -695,3 +702,4 @@ let rec c (*acho que aquele desenho chiq é um c*) environment term : code = mat
 	let letState = ssm2_eval letCode st environmentSSM2 d;;
 	let letValue = get_head letState;;
 	print_valueSSM2 "let1 SSM2" letValue;;
+
