@@ -228,8 +228,8 @@ let rec type_system environment e : typ = match e with
 (*SSM2 compilação*)
 type instruction = INT of int |TmB of bool
 	|POP | COPY
-	|ADD | INV
-	|EQ | GT
+	|ADD | INV | MULT
+	|EQ | GT | LS | EQLS | EQGT | DIFF
 	|AND | NOT
 	|JUMP of int | JMPIFTRUE of int
 	|VAR of ident
@@ -299,6 +299,17 @@ let rec ssm2_eval cod stck env dp : state = match cod with
 										)
 					| _ -> raise Now_its_Exhaustive (*killing warnings*)
 				)
+	(*MULT*)
+	|MULT::tl -> (match stck with
+					[] -> raise Empty_Stack
+					|SvINT(n1)::tls -> (match tls with
+											[] -> raise Empty_Stack
+											|SvINT(n2)::tltls -> ssm2_eval tl (List.append [SvINT(n1 * n2)] tltls) env dp
+										
+											| _ -> raise Now_its_Exhaustive (*killing warnings*)
+										)
+					| _ -> raise Now_its_Exhaustive (*killing warnings*)
+				)
 				
 	
 	(*regra do inv*)
@@ -320,6 +331,17 @@ let rec ssm2_eval cod stck env dp : state = match cod with
 										)
 					| _ -> raise Now_its_Exhaustive (*killing warnings*)
 				)
+	(*diff*)
+	|DIFF::tl -> (match stck with
+					[] -> raise Empty_Stack
+					|SvINT(n1)::tls -> (match tls with
+											[] -> raise Empty_Stack
+											|SvINT(n2)::tltls -> ssm2_eval tl (List.append [SvTmB(n1 <> n2)] tltls) env dp
+										
+											| _ -> raise Now_its_Exhaustive (*killing warnings*)
+										)
+					| _ -> raise Now_its_Exhaustive (*killing warnings*)
+				)
 
 	(*regra do gt*)
 	|GT::tl -> (match stck with
@@ -327,6 +349,42 @@ let rec ssm2_eval cod stck env dp : state = match cod with
 					|SvINT(n1)::tls -> (match tls with
 											[] -> raise Empty_Stack
 											|SvINT(n2)::tltls -> ssm2_eval tl (List.append [SvTmB(n1 > n2)] tltls) env dp
+										
+											| _ -> raise Now_its_Exhaustive (*killing warnings*)
+										)
+
+					| _ -> raise Now_its_Exhaustive (*killing warnings*)
+				)
+	(*less*)
+	|LS::tl -> (match stck with
+					[] -> raise Empty_Stack
+					|SvINT(n1)::tls -> (match tls with
+											[] -> raise Empty_Stack
+											|SvINT(n2)::tltls -> ssm2_eval tl (List.append [SvTmB(n1 < n2)] tltls) env dp
+										
+											| _ -> raise Now_its_Exhaustive (*killing warnings*)
+										)
+
+					| _ -> raise Now_its_Exhaustive (*killing warnings*)
+				)
+	(*equal less*)
+	|EQLS::tl -> (match stck with
+					[] -> raise Empty_Stack
+					|SvINT(n1)::tls -> (match tls with
+											[] -> raise Empty_Stack
+											|SvINT(n2)::tltls -> ssm2_eval tl (List.append [SvTmB(n1 <= n2)] tltls) env dp
+										
+											| _ -> raise Now_its_Exhaustive (*killing warnings*)
+										)
+
+					| _ -> raise Now_its_Exhaustive (*killing warnings*)
+				)
+	(*eq great*)
+	|EQGT::tl -> (match stck with
+					[] -> raise Empty_Stack
+					|SvINT(n1)::tls -> (match tls with
+											[] -> raise Empty_Stack
+											|SvINT(n2)::tltls -> ssm2_eval tl (List.append [SvTmB(n1 >= n2)] tltls) env dp
 										
 											| _ -> raise Now_its_Exhaustive (*killing warnings*)
 										)
@@ -421,13 +479,13 @@ let rec c (*acho que aquele desenho chiq é um c*) environment term : code = mat
 		(match op with
 			Sum -> List.append term_e2 (List.append term_e1 [ADD])
 			|Sub -> List.append (List.append term_e2 (List.append [INV] term_e1)) [ADD]			
-			(*| Mult -> ()*) (*definir açúcar sintático ou algo aqui*)
+			| Mult -> List.append term_e2 (List.append term_e1 [MULT])
 			|Great -> List.append term_e2 (List.append term_e1 [GT])
-			(*| GreatEq -> () *)(*definir açúcar sintático ou algo aqui*)
+			| GreatEq -> List.append term_e2 (List.append term_e1 [EQGT])
  			|Eq -> List.append term_e2 (List.append term_e1 [EQ])
-			(*| Diff -> ()*) (*definir açúcar sintático ou algo aqui*)
-			(*| LessEq -> ()*) (*definir açúcar sintático ou algo aqui*)
-			(*| Less -> ()*) (*definir açúcar sintático ou algo aqui*)
+			| Diff -> List.append term_e2 (List.append term_e1 [DIFF])
+			| LessEq -> List.append term_e2 (List.append term_e1 [EQLS])
+			| Less -> List.append term_e2 (List.append term_e1 [LS])
 			
 			| _ -> raise Now_its_Exhaustive
 		)
