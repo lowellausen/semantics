@@ -148,7 +148,7 @@ let rec insertTypeEnv identifier ident_type envir : type_env = match envir with
 	| [] -> [(identifier, ident_type)]
 	| hd::tl -> List.append [(identifier, ident_type)] envir
 
-let rec type_system environment e : typ = match e with
+let rec type_infer environment e : typ = match e with
 	
 	(*T-INT*)
 	TmN(n) -> TInt
@@ -158,8 +158,8 @@ let rec type_system environment e : typ = match e with
 	
 	(*T-OP todos*)
 	|TmEopE(e1, op, e2) ->
-		let type_e1 = type_system environment e1 in
-		let type_e2 = type_system environment e2 in
+		let type_e1 = type_infer environment e1 in
+		let type_e2 = type_infer environment e2 in
 		(match type_e1, op, type_e2 with
 			TInt, Sum, TInt -> TInt
 			|TInt, Sub, TInt -> TInt
@@ -178,9 +178,9 @@ let rec type_system environment e : typ = match e with
 	
 	(*T-IF*)
 	|TmIf(e1, e2, e3) ->
-		let type_e1 = type_system environment e1 in
-		let type_e2 = type_system environment e2 in
-		let type_e3 = type_system environment e3 in
+		let type_e1 = type_infer environment e1 in
+		let type_e2 = type_infer environment e2 in
+		let type_e3 = type_infer environment e3 in
 		(match type_e1, type_e2, type_e3 with
 			TTmB, TInt, TInt -> TInt
 			|TTmB, TTmB, TTmB -> TTmB
@@ -200,19 +200,19 @@ let rec type_system environment e : typ = match e with
 		(findType x environment)
 		
 	(*T_FUN*)
-	|TmFn(x, x_type, f_term) -> TFn(x_type, (type_system (insertTypeEnv x x_type environment) f_term))
+	|TmFn(x, x_type, f_term) -> TFn(x_type, (type_infer (insertTypeEnv x x_type environment) f_term))
 	
 	(*T-APP*)
 	|TmEE(e1, e2) ->
-		let type_e1 = type_system environment e1 in
-		let type_e2 = type_system environment e2 in
+		let type_e1 = type_infer environment e1 in
+		let type_e2 = type_infer environment e2 in
 		(match type_e1, type_e2 with
 			TFn(e1_typeI, e1_typeO), e2_type when(e1_typeI = e2_type) -> e1_typeO
 			| _ -> raise Now_its_Exhaustive (*killing warnings*)
 		)
 		
 	(*T-LET*)
-	|TmLet(x, type_x, e1, e2) when(type_x = type_system environment e1) -> type_system environment e2
+	|TmLet(x, type_x, e1, e2) -> type_infer (insertTypeEnv x type_x environment) e2
 		
 	(*T-LETREC*)
 	|TmLet_rec(f, (typeI, typeO), (x, type_x, e1), e2) -> 
@@ -220,14 +220,12 @@ let rec type_system environment e : typ = match e with
 		let f_type = TFn(typeI, typeO) in
 		(*let env_with_f = insertTypeEnv f TFn(typeI, typeO) env_with_x in*)
 		let env_with_f = insertTypeEnv f f_type env_with_x in
-		let type_e1 = type_system env_with_f e1 in
-		let type_e2 = type_system (insertTypeEnv f f_type environment) e2 in
+		let type_e1 = type_infer env_with_f e1 in
+		let type_e2 = type_infer (insertTypeEnv f f_type environment) e2 in
 		(if type_e1 = typeO && typeI = type_x
 		then type_e2
 		else raise Type_Error
-		)
-		
-	| _ -> raise Now_its_Exhaustive (*killing warnings*) ;;
+		);;
 
 
 
@@ -336,6 +334,12 @@ let rec ssm2_eval cod stck env dp : state = match cod with
 										
 											| _ -> raise Now_its_Exhaustive (*killing warnings*)
 										)
+					|SvTmB(n1)::tls -> (match tls with
+											[] -> raise Empty_Stack
+											|SvTmB(n2)::tltls -> ssm2_eval tl (List.append [SvTmB(n1 = n2)] tltls) env dp
+										
+											| _ -> raise Now_its_Exhaustive (*killing warnings*)
+										)
 					| _ -> raise Now_its_Exhaustive (*killing warnings*)
 				)
 	(*diff*)
@@ -344,6 +348,12 @@ let rec ssm2_eval cod stck env dp : state = match cod with
 					|SvINT(n1)::tls -> (match tls with
 											[] -> raise Empty_Stack
 											|SvINT(n2)::tltls -> ssm2_eval tl (List.append [SvTmB(n1 <> n2)] tltls) env dp
+										
+											| _ -> raise Now_its_Exhaustive (*killing warnings*)
+										)
+					|SvTmB(n1)::tls -> (match tls with
+											[] -> raise Empty_Stack
+											|SvTmB(n2)::tltls -> ssm2_eval tl (List.append [SvTmB(n1 <> n2)] tltls) env dp
 										
 											| _ -> raise Now_its_Exhaustive (*killing warnings*)
 										)
@@ -541,64 +551,263 @@ let rec c (*acho que aquele desenho chiq é um c*)  term : code = match term wit
 
 	let print_value s v : unit =
 		(match v with 
-			| N(n) -> Printf.printf "A avaliação de %s resultou em %d\n\n" s n
-			| B(b) -> Printf.printf "A avaliação de %s resultou em  %B\n\n" s b
-			| Clsr(var, exp, env) -> Printf.printf "A avaliação de %s resultou em uma Clsr\n\n" s
-			| RecClsr(f, var, exp, env) ->  Printf.printf "A avaliação de %s resultou em uma RecClsr\n\n" s
+			| N(n) -> Printf.printf "A avaliacao de %s resultou em %d\n" s n
+			| B(b) -> Printf.printf "A avaliacao de %s resultou em  %B\n" s b
+			| Clsr(var, exp, env) -> Printf.printf "A avaliacao de %s resultou em uma Clsr\n" s
+			| RecClsr(f, var, exp, env) ->  Printf.printf "A avaliacao de %s resultou em uma RecClsr\n" s
+		)
+		
+
+	let print_type s t : unit =
+		(match t with 
+			| TInt -> Printf.printf "O type infer de %s resultou em tipo TInt\n" s 
+			| TTmB -> Printf.printf "O type infer de %s resultou em  tipo TBool\n" s
+			| TFn(TInt, TInt) -> Printf.printf "O type infer de %s resultou em tipo TInt -> TInt\n" s 
+			| TFn(TTmB, TTmB) -> Printf.printf "O type infer de %s resultou em tipo TBool -> TBool\n" s 
+			| TFn(TInt, TTmB) -> Printf.printf "O type infer de %s resultou em tipo TInt -> TBool\n" s 
+			| TFn(TTmB, TInt) -> Printf.printf "O type infer de %s resultou em tipo TBool -> TInt\n" s 
+			| TFn(_,_) -> Printf.printf "O type infer de %s resultou em algum tipo TFn maluco\n" s 
 		)
 
 
 
 	let print_valueSSM2 s v : unit =
 		(match v with 
-			| SvINT(n) -> Printf.printf "A avaliação de %s resultou em  %d\n\n" s n
-			| SvTmB(b) -> Printf.printf "A avaliação de %s resultou em  %B\n\n" s b
-			| SvCLOS(var, exp, env) -> Printf.printf "A avaliação de %s resultou em uma SvCLOS\n\n" s
-			| SvRCLOS(f, var, exp, env) ->  Printf.printf "A avaliação de %s resultou em uma SvRCLOS\n\n" s
+			| SvINT(n) -> Printf.printf "A avaliacao de %s resultou em  %d\n\n\n\n\n" s n
+			| SvTmB(b) -> Printf.printf "A avaliacao de %s resultou em  %B\n\n\n\n\n" s b
+			| SvCLOS(var, exp, env) -> Printf.printf "A avaliacao de %s resultou em uma SvCLOS\n\n\n\n\n" s
+			| SvRCLOS(f, var, exp, env) ->  Printf.printf "A avaliacao de %s resultou em uma SvRCLOS\n\n\n\n\n" s
 		)
+		
+	let get_head a: storable_value =
+			( match a with
+				|State(cod, hd::tls, env, dp) -> hd
+				| _ -> raise Now_its_Exhaustive
+			);;
+
+
+	
+	Printf.printf "\n\n";;
+	(*Primeiro é rodado o type_infer sobre a árvore, depois avaliacao L1, depois compilação L1 para ssm2*)
+	(*teste sub*)
+	let sub = TmEopE(TmN(10), Sub, TmN(5));;	
+	print_type "sub" (type_infer [] sub);;	
+	let testSub = bs_eval environment sub;;
+	print_value "sub" testSub;;
+	let subCode = c sub;;
+	let subState = ssm2_eval subCode [] [] [];;
+	let subValue = get_head subState;;
+	print_valueSSM2 "sub SSM2" subValue;;
+
+
+	
+	(*teste sum*)
+	let sum = TmEopE(TmN(10), Sum, TmN(5));;
+	print_type "sum" (type_infer [] sum);;
+	let testSum = bs_eval environment sum;;
+	print_value "sum" testSum;;
+	let sumCode = c sum;;
+	let sumState = ssm2_eval sumCode [] [] [];;
+	let sumValue = get_head sumState;;
+	print_valueSSM2 "sum SSM2" sumValue;;
+	
+	
+	(*teste mult*)
+	let mult = TmEopE(TmN(10), Mult, TmN(5));;
+	print_type "mult" (type_infer [] mult);;
+	let testMult = bs_eval environment mult;;
+	print_value "mult" testMult;;
+	let multCode = c mult;;
+	let multState = ssm2_eval multCode [] [] [];;
+	let multValue = get_head multState;;
+	print_valueSSM2 "mult SSM2" multValue;;
+
+	
+	(*teste less*)
+	let less = TmEopE(TmN(10), Less, TmN(5));;
+	print_type "less" (type_infer [] less);;
+	let testLess = bs_eval environment less;;
+	print_value "less" testLess;;
+	let lessCode = c less;;
+	let lessState = ssm2_eval lessCode [] [] [];;
+	let lessValue = get_head lessState;;
+	print_valueSSM2 "less SSM2" lessValue;;
+
+	
+	(*teste eqNum*)
+	let eqNum = TmEopE(TmN(10), Eq, TmN(5));;
+	print_type "eqNum" (type_infer [] eqNum);;
+	let testEqNum = bs_eval environment eqNum;;
+	print_value "eqNum" testEqNum;;
+	let eqNumCode = c eqNum;;
+	let eqNumState = ssm2_eval eqNumCode [] [] [];;
+	let eqNumValue = get_head eqNumState;;
+	print_valueSSM2 "eqNum SSM2" eqNumValue;;
+
+	
+	(*teste eqBool*)
+	let eqBool = TmEopE(TmB(false), Eq, TmB(true));;
+	print_type "eqBool" (type_infer [] eqBool);;
+	let testEqBool = bs_eval environment eqBool;;
+	print_value "eqBool" testEqBool;; 
+	let eqBoolCode = c eqBool;;
+	let eqBoolState = ssm2_eval eqBoolCode [] [] [];;
+	let eqBoolValue = get_head eqBoolState;;
+	print_valueSSM2 "eqBool SSM2" eqBoolValue;;
+	
+	
+	
+	(*teste great*)
+	let great  = TmEopE(TmN(10), Great, TmN(5));;
+	print_type "great" (type_infer [] great);;
+	let testGreat = bs_eval environment great;;
+	print_value "great" testGreat;;
+	let greatCode = c great;;
+	let greatState = ssm2_eval greatCode [] [] [];;
+	let greatValue = get_head greatState;;
+	print_valueSSM2 "great SSM2" greatValue;;
+	
+	
+	
+	(*teste diffNum*)
+	let diffNum = TmEopE(TmN(10), Diff, TmN(5));;
+	print_type "diffNum" (type_infer [] diffNum);;
+	let testDiffNum = bs_eval environment diffNum;;
+	print_value "diffNum" testDiffNum;;
+	let diffNumCode = c diffNum;;
+	let diffNumState = ssm2_eval diffNumCode [] [] [];;
+	let diffNumValue = get_head diffNumState;;
+	print_valueSSM2 "diffNum SSM2" diffNumValue;;
+
+	
+	
+	
+	(*teste diffBool*)
+	let diffBool = TmEopE(TmB(false), Diff, TmB(true));;
+	print_type "diffBool" (type_infer [] diffBool);;
+	let testDiffBool = bs_eval environment diffBool;;
+	print_value "diffBool" testDiffBool;; 
+	let diffBoolCode = c diffBool;;
+	let diffBoolState = ssm2_eval diffBoolCode [] [] [];;
+	let diffBoolValue = get_head diffBoolState;;
+	print_valueSSM2 "diffBool SSM2" diffBoolValue;;
+
+	
+	
+	(*teste lessEq*)
+	let lessEq = TmEopE(TmN(10), LessEq, TmN(5));;
+	print_type "lessEq" (type_infer [] lessEq);;
+	let testLessEq = bs_eval environment lessEq;;
+	print_value "lessEq" testLessEq;;
+	let lessEqCode = c lessEq;;
+	let lessEqState = ssm2_eval lessEqCode [] [] [];;
+	let lessEqValue = get_head lessEqState;;
+	print_valueSSM2 "lessEq SSM2" lessEqValue;;
+
+	
+	
+	(*teste greatEq*)
+	let greatEq = TmEopE(TmN(10), GreatEq, TmN(5));;
+	print_type "greatEq" (type_infer [] greatEq);;
+	let testGreatEq = bs_eval environment greatEq;;
+	print_value "greatEq" testGreatEq;;
+	let greatEqCode = c greatEq;;
+	let greatEqState = ssm2_eval greatEqCode [] [] [];;
+	let greatEqValue = get_head greatEqState;;
+	print_valueSSM2 "greatEq SSM2" greatEqValue;;
+
+	
+	
+	(*teste ifTrue*)
+	let ifTrue = TmIf(TmEopE(TmN(99), Diff, TmN(25)), TmB(true), TmB(false));;
+	print_type "ifTrue" (type_infer [] ifTrue);;
+	let testIfTrue = bs_eval environment ifTrue;;
+	print_value "ifTrue" testIfTrue;;
+	let ifTrueCode = c ifTrue;;
+	let ifTrueState = ssm2_eval ifTrueCode [] [] [];;
+	let ifTrueValue = get_head ifTrueState;;
+	print_valueSSM2 "ifTrue SSM2" ifTrueValue;;
+
+	
+	
+	(*ifFalse*)
+	let ifFalse = TmIf(TmEopE(TmN(99), Diff, TmN(99)), TmB(true), TmB(false));;
+	print_type "ifFalse" (type_infer [] ifFalse);;
+	let testIfFalse = bs_eval environment ifFalse;;
+	print_value "ifFalse" testIfFalse;;
+	let ifFalseCode = c ifFalse;;
+	let ifFalseState = ssm2_eval ifFalseCode [] [] [];;
+	let ifFalseValue = get_head ifFalseState;;
+	print_valueSSM2 "ifFalse SSM2" ifFalseValue;;
+
 	
 
-
-	let sub = TmEopE(TmN(10), Sub, TmN(5));;
-
-	let sum = TmEopE(TmN(10), Sum, TmN(5));;
-
-	let mult = TmEopE(TmN(10), Mult, TmN(5));;
-
-	let less = TmEopE(TmN(10), Less, TmN(5));;
-
-	let eqNum = TmEopE(TmN(10), Eq, TmN(5));;
-
-	let eqBool = TmEopE(TmB(false), Eq, TmB(true));;
-
-	let great  = TmEopE(TmN(10), Great, TmN(5));;
-
-	let diffNum = TmEopE(TmN(10), Diff, TmN(5));;
-
-	let diffBool = TmEopE(TmB(false), Diff, TmB(true));;
-
-	let lessEq = TmEopE(TmN(10), LessEq, TmN(5));;
-
-	let greatEq = TmEopE(TmN(10), GreatEq, TmN(5));;
-
-	let ifTrue = TmIf(TmEopE(TmN(99), Diff, TmN(25)), TmB(true), TmB(false));;
-
-	let ifFalse = TmIf(TmEopE(TmN(99), Diff, TmN(99)), TmB(true), TmB(false));;
-
-	let ifSSM2 = TmIf(TmEopE(TmN(99), Great, TmN(10)), TmB(true), TmB(false));;
-
+	(*teste fn*)
 	let fn = TmFn("x", TInt, TmEopE(TmX("x"), Sub, TmN(1)));;
+	print_type "fn" (type_infer [] fn);;
+	let testFn = bs_eval environment fn;;
+	print_value "fn" testFn;;
+	let fnCode = c fn;;
+	let fnState = ssm2_eval fnCode [] [] [];;
+	let fnValue = get_head fnState;;
+	print_valueSSM2 "fn SSM2" fnValue;;
+
 
 	let x = TmX("x");;
-
+	
+	(*teste tEE*)
 	let tEE = TmEE(TmFn("x", TInt, TmEopE(x, Sub, TmN(4))), TmN(5));;
+	print_type "tEE" (type_infer [] tEE);;
+	let testTEE = bs_eval environment tEE;;
+	print_value "tEE" testTEE;;
+	let tEECode = c tEE;;
+	let tEEState = ssm2_eval tEECode [] [] [];;
+	let tEEValue = get_head tEEState;;
+	print_valueSSM2 "tEE SSM2" tEEValue;;
 
+
+	
+	(*teste let1*)
 	let let1 = TmLet("x", TInt, TmN(2), TmEopE(TmX("x"), Sub, TmN(2)));;
+	print_type "let1" (type_infer [] let1);;
+	let testLet1 = bs_eval environment let1;;
+	print_value "let1" testLet1;;
+	let let1Code = c let1;;
+	let let1State = ssm2_eval let1Code [] [] [];;
+	let let1Value = get_head let1State;;
+	print_valueSSM2 "let1 SSM2" let1Value;;
 
+	
+	
+	
+	(*teste let2*)
 	let let2 = TmLet("x", TInt, TmN(2), TmLet("y", TInt, TmN(2), TmEopE(TmX("x"), Mult, TmX("y"))));;
+	print_type "let2" (type_infer [] let2);;
+	let testLet2 = bs_eval environment let2;;
+	print_value "let2" testLet2;;
+	let let2Code = c let2;;
+	let let2State = ssm2_eval let2Code [] [] [];;
+	let let2Value = get_head let2State;;
+	print_valueSSM2 "let2 SSM2" let2Value;;
 
+
+	
+	
+	
+	(*teste let3*)
 	let let3 = TmLet("x", TInt, TmN(23), TmIf(TmEopE(TmX("x"), Eq, TmN(23)), TmB(true), TmB(false)));;
+	print_type "let3" (type_infer [] let3);;
+	let testLet3 = bs_eval environment let3;;
+	print_value "let3" testLet3;;
+	let let3Code = c let3;;
+	let let3State = ssm2_eval let3Code [] [] [];;
+	let let3Value = get_head let3State;;
+	print_valueSSM2 "let3 SSM2" let3Value;;
 
+	
+	
+	
+	(*teste letRec1*)
 	let letRec1 = TmLet_rec("fat", (TInt, TInt), ("x", TInt,
 							TmIf(TmEopE(TmX("x"), Eq, TmN(0)),
 								TmN(1),
@@ -606,7 +815,18 @@ let rec c (*acho que aquele desenho chiq é um c*)  term : code = match term wit
 							)),
 							TmEE(TmX("fat"), TmN(8))
 						);;
+	print_type "letRec1" (type_infer [] letRec1);;
+	let testletRec1 = bs_eval environment letRec1;;
+	print_value "letRec1" testletRec1;;
+	let letRec1Code = c letRec1;;
+	let letRec1State = ssm2_eval letRec1Code [] [] [];;
+	let letRec1Value = get_head letRec1State;;
+	print_valueSSM2 "letRec1 SSM2" letRec1Value;;
 
+	
+	
+	
+	(*teste letRec2*)
 	let letRec2 = TmLet_rec("fib", (TInt, TInt), ("x", TInt,
 							TmIf(TmEopE(TmX("x"), Less, TmN(2)),
 								TmX("x"),
@@ -614,109 +834,10 @@ let rec c (*acho que aquele desenho chiq é um c*)  term : code = match term wit
 							)),
 							TmEE(TmX("fib"), TmN(8))
 						);;
-
-	let letRecTeste = TmLet_rec("teste", (TInt, TInt), ("x", TInt,
-						TmEopE(TmX("x"), Sum, TmN(1))),
-						TmEE(TmX("teste"), TmN(9))
-					);;
-
-
-	let testSub = bs_eval environment sub;;
-	print_value "sub" testSub;;
-
-	let testSum = bs_eval environment sum;;
-	print_value "sum" testSum;;
-
-	let testMult = bs_eval environment mult;;
-	print_value "mult" testMult;;
-
-	let testLess = bs_eval environment less;;
-	print_value "less" testLess;;
-
-	let testEqNum = bs_eval environment eqNum;;
-	print_value "eqNum" testEqNum;;
-
-	let testEqBool = bs_eval environment eqBool;;
-	print_value "eqBool" testEqBool;; 
-
-	let testGreat = bs_eval environment great;;
-	print_value "great" testGreat;;
-
-	let testDiffNum = bs_eval environment diffNum;;
-	print_value "diffNum" testDiffNum;;
-
-	let testDiffBool = bs_eval environment diffBool;;
-	print_value "diffBool" testDiffBool;; 
-
-	let testLessEq = bs_eval environment lessEq;;
-	print_value "lessEq" testLessEq;;
-
-	let testGreatEq = bs_eval environment greatEq;;
-	print_value "greatEq" testGreatEq;;
-
-	let testIfFalse = bs_eval environment ifFalse;;
-	print_value "ifFalse" testIfFalse;;
-
-	let testIfTrue = bs_eval environment ifTrue;;
-	print_value "ifTrue" testIfTrue;;
-
-	let testFn = bs_eval environment fn;;
-	print_value "fn" testFn;;
-
-	let testTEE = bs_eval environment tEE;;
-	print_value "tEE" testTEE;;
-
-	let testLet1 = bs_eval environment let1;;
-	print_value "let1" testLet1;;
-
-	let testLet2 = bs_eval environment let2;;
-	print_value "let2" testLet2;;
-
-	let testLet3 = bs_eval environment let3;;
-	print_value "let3" testLet3;;
-
-	let testletRec1 = bs_eval environment letRec1;;
-	print_value "letRec1" testletRec1;;
-
+	print_type "letRec2" (type_infer [] letRec2);;
 	let testletRec2 = bs_eval environment letRec2;;
 	print_value "letRec2" testletRec2;;
-
-
-(*************TESTES SSM2*************)
-
-	let get_head a: storable_value =
-			( match a with
-				|State(cod, hd::tls, env, dp) -> hd
-				| _ -> raise Now_its_Exhaustive
-);;
-
-
-	let sumCode = c sum;;
-	let sumState = ssm2_eval sumCode st environmentSSM2 d;;
-	let sumValue = get_head sumState;;
-	print_valueSSM2 "sum SSM2" sumValue;;
-
-	let ifCode = c ifSSM2;;
-	let ifState = ssm2_eval ifCode st environmentSSM2 d;;
-	let ifValue = get_head ifState;;
-	print_valueSSM2 "ifSSM2 SSM2" ifValue;;
-
-	let letCode = c let2;;
-	let letState = ssm2_eval letCode st environmentSSM2 d;;
-	let letValue = get_head letState;;
-	print_valueSSM2 "let2 SSM2" letValue;;
-	
-	let letRecCode = c letRec2;;
-	let letRecState = ssm2_eval letRecCode st [] d;;
-	let letRecValue = get_head letRecState;;
-	print_valueSSM2 "letRec2 SSM2" letRecValue;;
-	
-	let letRecCodeTeste = c letRecTeste;;
-	let letRecStateTeste = ssm2_eval letRecCodeTeste [] [] [];;
-	let letRecValueTeste = get_head letRecStateTeste;;
-	print_valueSSM2 "letRecTeste SSM2" letRecValueTeste;;
-	
-	let ifFalseCode = c ifFalse;;
-	let ifFalseState = ssm2_eval ifFalseCode [] [] [];;
-	let ifFalseValue = get_head ifFalseState;;
-	print_valueSSM2 "ifFalse SSM2" ifFalseValue;;
+	let letRec2Code = c letRec2;;
+	let letRec2State = ssm2_eval letRec2Code [] [] [];;
+	let letRec2Value = get_head letRec2State;;
+	print_valueSSM2 "letRec2 SSM2" letRec2Value;;
