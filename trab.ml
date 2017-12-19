@@ -1,6 +1,13 @@
 (*trabalhinho de semântica 2017/2*)
 (*Não creio que se faz comentário assim*)
 
+(*
+Isadora Oliveira 
+Jonathan Martins
+Leonardo Wellausen
+
+*)
+
 (*Sintaxe Abstrata:*)
 type op = Sum
 	|Sub
@@ -486,8 +493,6 @@ let rec c (*acho que aquele desenho chiq é um c*)  term : code = match term wit
 			| Diff -> List.append term_e2 (List.append term_e1 [DIFF])
 			| LessEq -> List.append term_e2 (List.append term_e1 [EQLS])
 			| Less -> List.append term_e2 (List.append term_e1 [LS])
-			
-			| _ -> raise Now_its_Exhaustive
 		)
 		
 	(*regra do if*)
