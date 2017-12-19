@@ -413,10 +413,10 @@ let rec ssm2_eval cod stck env dp : state = match cod with
 				)
 				
 	(*regra do jump*)
-	|JUMP(n)::tl -> let (cod1, cod2) = split_at1 n cod in (ssm2_eval cod2 stck env dp)
+	|JUMP(n)::tl -> let (cod1, cod2) = split_at1 n tl in (ssm2_eval cod2 stck env dp)
 	
 	(*regra do jmpiftrue*)
-	|JMPIFTRUE(n)::tl -> let (cod1, cod2) = split_at1 n cod in
+	|JMPIFTRUE(n)::tl -> let (cod1, cod2) = split_at1 n tl in
 						(match stck with
 							[] -> raise Empty_Stack
 							|SvTmB(b)::tls -> (if b then (ssm2_eval cod2 tls env dp) else (ssm2_eval tl tls env dp))
@@ -458,13 +458,13 @@ let rec ssm2_eval cod stck env dp : state = match cod with
 					
 	(*caso code seja vazio, checar o dumpzin*)
 	|[] -> (match dp with
-				[]-> State([], stck, env, []) (*é isso mesmo? retornamos um state value?? teóricamente há um elemento na stack??? *)
-				| (cod_d, stck_d, env_d)::tl -> ssm2_eval cod_d (List.append stck (*queira deus que tenha só um sv*) stck_d) env_d tl
+				[]-> State(cod, stck, env, dp) (*é isso mesmo? retornamos um state value?? teóricamente há um elemento na stack??? *)
+				| (cod_d, stck_d, env_d)::tl -> ssm2_eval cod_d (List.append [(List.hd stck)] stck_d) env_d tl
 			);;
 			
 			
 (*agora dá pra compilar L1 pra ssm2? omg*)
-let rec c (*acho que aquele desenho chiq é um c*) environment term : code = match term with
+let rec c (*acho que aquele desenho chiq é um c*)  term : code = match term with
 
 	(*regra dos int*)
 	TmN(n) -> [INT(n)]
@@ -474,8 +474,8 @@ let rec c (*acho que aquele desenho chiq é um c*) environment term : code = mat
 	
 	(*regra das op*)
 	| TmEopE(e1, op, e2) ->
-		let term_e1 = c environment e1 in
-		let term_e2 = c environment e2 in
+		let term_e1 = c  e1 in
+		let term_e2 = c  e2 in
 		(match op with
 			Sum -> List.append term_e2 (List.append term_e1 [ADD])
 			|Sub -> List.append (List.append term_e2 (List.append [INV] term_e1)) [ADD]			
@@ -492,11 +492,12 @@ let rec c (*acho que aquele desenho chiq é um c*) environment term : code = mat
 		
 	(*regra do if*)
 	|TmIf(e1, e2, e3) ->
-		let term_e1 = c environment e1 in
-		let term_e2 = c environment e2 in	
-		let term_e3 = c environment e3 in
+		let term_e1 = c  e1 in
+		let term_e2 = c  e2 in	
+		let term_e3 = c  e3 in
 		(
-		List.append (List.append (List.append term_e1 (List.append [JMPIFTRUE((List.length term_e3) +1)] term_e3)) [JUMP((List.length term_e2))]) term_e2
+		(*List.append (List.append (List.append term_e1 (List.append [JMPIFTRUE((List.length term_e3) +1)] term_e3)) [JUMP((List.length term_e2))]) term_e2*)
+		List.append term_e1 (List.append [JMPIFTRUE((List.length term_e3) +1)] (List.append term_e3 (List.append [JUMP((List.length term_e2))] term_e2))) 
 		)
 	
 	(*regra do var*)
@@ -504,23 +505,23 @@ let rec c (*acho que aquele desenho chiq é um c*) environment term : code = mat
 	
 	(*regra da aplicação*)
 	|TmEE(e1, e2) ->
-		let term_e1 = c environment e1 in
-		let term_e2 = c environment e2 in
+		let term_e1 = c  e1 in
+		let term_e2 = c  e2 in
 		( List.append term_e2 (List.append term_e1 [APPLY]))
 		
 	(*regra do fun*)
-	|TmFn(x, type_x, term_f) -> [FUN(x,  (c environment term_f))]
+	|TmFn(x, type_x, term_f) -> [FUN(x,  (c  term_f))]
 	
 	(*regra do let*)
 	|TmLet(x, type_x, e1, e2) ->
-		let term_e1 = c environment e1 in
-		let term_e2 = c environment e2 in
+		let term_e1 = c  e1 in
+		let term_e2 = c  e2 in
 		(List.append term_e1 (List.append [FUN(x, term_e2)] [APPLY]))
 		
 	(*Regra do let rec*)
 	|TmLet_rec(f, (typeI, typeO), (x, type_x, e1), e2) -> 
-		let term_e1 = c environment e1 in
-		let term_e2 = c environment e2 in
+		let term_e1 = c  e1 in
+		let term_e2 = c  e2 in
 		(List.append [RFUN(f, x, term_e1)] (List.append [FUN(f, term_e2)] [APPLY]))
 		
 	;;
@@ -609,6 +610,10 @@ let rec c (*acho que aquele desenho chiq é um c*) environment term : code = mat
 							TmEE(TmX("fib"), TmN(8))
 						);;
 
+	let letRecTeste = TmLet_rec("teste", (TInt, TInt), ("x", TInt,
+						TmEopE(TmX("x"), Sum, TmN(1))),
+						TmEE(TmX("teste"), TmN(9))
+					);;
 
 
 	let testSub = bs_eval environment sub;;
@@ -681,17 +686,32 @@ let rec c (*acho que aquele desenho chiq é um c*) environment term : code = mat
 );;
 
 
-	let sumCode = c environmentSSM2 sum;;
+	let sumCode = c sum;;
 	let sumState = ssm2_eval sumCode st environmentSSM2 d;;
 	let sumValue = get_head sumState;;
 	print_valueSSM2 "sum SSM2" sumValue;;
 
-	let ifCode = c environmentSSM2 ifSSM2;;
+	let ifCode = c ifSSM2;;
 	let ifState = ssm2_eval ifCode st environmentSSM2 d;;
 	let ifValue = get_head ifState;;
 	print_valueSSM2 "ifSSM2 SSM2" ifValue;;
 
-	let letCode = c environmentSSM2 let1;;
+	let letCode = c let2;;
 	let letState = ssm2_eval letCode st environmentSSM2 d;;
 	let letValue = get_head letState;;
-	print_valueSSM2 "let1 SSM2" letValue;;
+	print_valueSSM2 "let2 SSM2" letValue;;
+	
+	let letRecCode = c letRec2;;
+	let letRecState = ssm2_eval letRecCode st [] d;;
+	let letRecValue = get_head letRecState;;
+	print_valueSSM2 "letRec2 SSM2" letRecValue;;
+	
+	let letRecCodeTeste = c letRecTeste;;
+	let letRecStateTeste = ssm2_eval letRecCodeTeste [] [] [];;
+	let letRecValueTeste = get_head letRecStateTeste;;
+	print_valueSSM2 "letRecTeste SSM2" letRecValueTeste;;
+	
+	let ifFalseCode = c ifFalse;;
+	let ifFalseState = ssm2_eval ifFalseCode [] [] [];;
+	let ifFalseValue = get_head ifFalseState;;
+	print_valueSSM2 "ifFalse SSM2" ifFalseValue;;
